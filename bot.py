@@ -468,28 +468,45 @@ async def input_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===================== Main =====================
 def main():
+    import os
     token = os.environ.get("BOT_TOKEN")
     if not token:
-        raise RuntimeError("Environment variable BOT_TOKEN belum di-set. Isi dulu BOT_TOKEN.")
+        raise RuntimeError("Environment variable BOT_TOKEN belum di-set.")
+
+    base_url = os.environ.get("WEBHOOK_BASE_URL", "").rstrip("/")
+    port = int(os.environ.get("PORT", "10000"))
+
+    from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+
     app = ApplicationBuilder().token(token).build()
 
-    # Commands
+    # === handlers kamu yang sudah ada ===
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("preview", preview))
     app.add_handler(CommandHandler("batal", batal))
-
-    # Inline callbacks
     app.add_handler(CallbackQueryHandler(on_start_laporan, pattern="^start_laporan$"))
     app.add_handler(CallbackQueryHandler(on_pilih_shift,   pattern="^shift_[12]$"))
     app.add_handler(CallbackQueryHandler(on_set_tanggal,   pattern="^tgl_(today|manual)$"))
     app.add_handler(CallbackQueryHandler(on_produk_choice, pattern="^produk_(yes|no)$"))
-
-    # Text input & keyboard buttons
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, input_text))
 
-    print("Bot berjalan...")
-    app.run_polling()
+    if base_url:
+        # WEBHOOK (untuk Web Service gratis: Render/Koyeb)
+        path = token  # secret path
+        print(f"Webhook on 0.0.0.0:{port} → {base_url}/{path}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=path,
+            webhook_url=f"{base_url}/{path}",
+            drop_pending_updates=True,
+        )
+    else:
+        # POLLING (untuk lokal/VPS/worker)
+        print("Polling mode (no WEBHOOK_BASE_URL set).")
+        app.run_polling()
+
 
 if __name__ == "__main__":
     main()
